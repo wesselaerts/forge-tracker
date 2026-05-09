@@ -1,16 +1,16 @@
 // Forge PWA service worker
-// Cache versie - bump dit nummer wanneer je updates uitrolt zodat clients vernieuwen
-const CACHE_VERSION = 'forge-v1';
+// Bump CACHE_VERSION wanneer je updates uitrolt zodat clients vernieuwen
+const CACHE_VERSION = 'forge-v2';
 
 const ASSETS = [
   './',
   './index.html',
   './app.js',
+  './styles.css',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  './icon-180.png',
-  'https://cdn.tailwindcss.com'
+  './icon-180.png'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,7 +35,7 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first voor HTML (krijgt updates), cache-first voor assets
+// Network-first voor HTML, cache-first voor assets
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
@@ -44,7 +44,6 @@ self.addEventListener('fetch', (event) => {
   const isHTML = req.headers.get('accept')?.includes('text/html');
 
   if (isHTML) {
-    // Network-first
     event.respondWith(
       fetch(req)
         .then((res) => {
@@ -55,12 +54,11 @@ self.addEventListener('fetch', (event) => {
         .catch(() => caches.match(req).then((res) => res || caches.match('./index.html')))
     );
   } else {
-    // Cache-first
     event.respondWith(
       caches.match(req).then((cached) => {
         if (cached) return cached;
         return fetch(req).then((res) => {
-          if (res.ok && (url.origin === location.origin || url.origin === 'https://cdn.tailwindcss.com')) {
+          if (res.ok && url.origin === location.origin) {
             const clone = res.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone));
           }
