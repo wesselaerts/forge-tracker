@@ -1,12 +1,13 @@
 // Forge PWA service worker
 // Bump CACHE_VERSION wanneer je updates uitrolt zodat clients vernieuwen
-const CACHE_VERSION = 'forge-v14';
+const CACHE_VERSION = 'forge-v15';
 
 const ASSETS = [
   './',
   './index.html',
   './app.js',
   './styles.css',
+  './leaflet.css',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
