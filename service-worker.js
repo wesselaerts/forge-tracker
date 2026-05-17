@@ -1,6 +1,6 @@
 // Forge PWA service worker
 // Bump CACHE_VERSION wanneer je updates uitrolt zodat clients vernieuwen
-const CACHE_VERSION = 'forge-v15';
+const CACHE_VERSION = 'forge-v16';
 
 const ASSETS = [
   './',
@@ -15,7 +15,6 @@ const ASSETS = [
 ];
 
 // Origins die de service worker mag intercepten (voor offline cache).
-// Externe API's (zoals Concept2) worden NIET geintercept — laat browser direct doen.
 const CACHEABLE_ORIGINS = [
   self.location.origin,
   'https://fonts.googleapis.com',
@@ -51,9 +50,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(req.url);
 
-  // Externe URL's (zoals Concept2 API of een eigen proxy) niet onderscheppen
   if (!CACHEABLE_ORIGINS.includes(url.origin)) {
-    return; // browser handelt het natuurlijk af, met CORS-regels
+    return;
   }
 
   const isHTML = req.headers.get('accept')?.includes('text/html');
@@ -82,4 +80,64 @@ self.addEventListener('fetch', (event) => {
       })
     );
   }
+});
+
+// ============ PUSH NOTIFICATIONS ============
+
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (e) {
+    data = { title: 'Forge', body: event.data?.text() || '' };
+  }
+
+  const title = data.title || 'Forge';
+  const options = {
+    body: data.body || '',
+    icon: './icon-192.png',
+    badge: './icon-192.png',
+    tag: data.tag || 'forge-' + Date.now(),
+    renotify: !!data.tag,
+    requireInteraction: false,
+    data: {
+      url: data.url || './',
+      action: data.action || null,
+      ...(data.data || {})
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || './';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      // Als Forge al open is, focus erop
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      // Anders open nieuwe window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+
+// Push subscription kan wisselen (bv. na re-install) — re-subscribe
+self.addEventListener('pushsubscriptionchange', (event) => {
+  // Stuur bericht naar de pagina dat re-subscribe nodig is
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window' }).then((clientList) => {
+      clientList.forEach((client) => {
+        client.postMessage({ type: 'PUSH_RESUBSCRIBE_NEEDED' });
+      });
+    })
+  );
 });
