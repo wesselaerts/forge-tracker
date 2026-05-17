@@ -1,6 +1,6 @@
 // Forge PWA service worker
 // Bump CACHE_VERSION wanneer je updates uitrolt zodat clients vernieuwen
-const CACHE_VERSION = 'forge-v6';
+const CACHE_VERSION = 'forge-v7';
 
 const ASSETS = [
   './',
@@ -11,6 +11,14 @@ const ASSETS = [
   './icon-192.png',
   './icon-512.png',
   './icon-180.png'
+];
+
+// Origins die de service worker mag intercepten (voor offline cache).
+// Externe API's (zoals Concept2) worden NIET geintercept — laat browser direct doen.
+const CACHEABLE_ORIGINS = [
+  self.location.origin,
+  'https://fonts.googleapis.com',
+  'https://fonts.gstatic.com'
 ];
 
 self.addEventListener('install', (event) => {
@@ -35,12 +43,18 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Network-first voor HTML, cache-first voor assets
+// Network-first voor HTML, cache-first voor assets, bypass voor externe API's
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return;
 
   const url = new URL(req.url);
+
+  // Externe URL's (zoals Concept2 API of een eigen proxy) niet onderscheppen
+  if (!CACHEABLE_ORIGINS.includes(url.origin)) {
+    return; // browser handelt het natuurlijk af, met CORS-regels
+  }
+
   const isHTML = req.headers.get('accept')?.includes('text/html');
 
   if (isHTML) {
@@ -58,12 +72,12 @@ self.addEventListener('fetch', (event) => {
       caches.match(req).then((cached) => {
         if (cached) return cached;
         return fetch(req).then((res) => {
-          if (res.ok && url.origin === location.origin) {
+          if (res.ok) {
             const clone = res.clone();
             caches.open(CACHE_VERSION).then((cache) => cache.put(req, clone));
           }
           return res;
-        });
+        }).catch(() => cached);
       })
     );
   }
